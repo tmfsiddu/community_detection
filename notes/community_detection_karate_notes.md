@@ -133,9 +133,9 @@ It checks:
 
 ## Modularity Formula
 
-[
-Q = \frac{1}{2m} \sum_{ij} \left(A_{ij} - \frac{k_i k_j}{2m}\right) \delta(c_i,c_j)
-]
+```math
+Q=\frac{1}{2m}\sum_{ij}\left(A_{ij}-\frac{k_i k_j}{2m}\right)\delta(c_i,c_j)
+```
 
 ---
 
