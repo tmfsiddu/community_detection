@@ -143,10 +143,10 @@ Q=\frac{1}{2m}\sum_{ij}\left(A_{ij}-\frac{k_i k_j}{2m}\right)\delta(c_i,c_j)
 
 | Symbol            | Meaning                          |
 | ----------------- | -------------------------------- |
-| (A_{ij})          | 1 if edge exists between i and j |
-| (k_i)             | Degree of node i                 |
-| (m)               | Number of edges                  |
-| (\delta(c_i,c_j)) | 1 if nodes in same community     |
+| `A_{ij}`          | 1 if edge exists between i and j |
+| `k_i`             | Degree of node i                 |
+| `m`               | Number of edges                  |
+| `\delta(c_i,c_j)` | 1 if nodes in same community     |
 
 ---
 
@@ -306,9 +306,9 @@ Repeat until no improvement.
 
 ## Important Formula
 
-[
+```math
 \Delta Q = Q_{new} - Q_{old}
-]
+```
 
 ---
 
@@ -422,9 +422,9 @@ Should this node move to another community?
 
 ## Change in Modularity
 
-[
+```math
 \Delta Q = Q_{new} - Q_{old}
-]
+```
 
 If:
 
@@ -438,9 +438,9 @@ move node.
 
 ## Simplified Delta-Q Formula
 
-[
+```math
 \Delta Q = \frac{2(k_{i,in,target}-k_{i,in,current})}{2L} - \frac{k_i(\sigma_{target}-\sigma_{current})}{2L^2}
-]
+```
 
 ---
 
@@ -449,11 +449,11 @@ move node.
 | Symbol             | Meaning                              |
 | ------------------ | ------------------------------------ |
 | (k_i)              | Degree of node i                     |
-| (k_{i,in,target})  | Links from node to target community  |
-| (k_{i,in,current}) | Links from node to current community |
-| (\sigma_{target})  | Total degree of target community     |
-| (\sigma_{current}) | Total degree of current community    |
-| (L)                | Total number of edges                |
+| `k_{i,in,target}`  | Links from node to target community  |
+| `k_{i,in,current}` | Links from node to current community |
+| `\sigma_{target}`  | Total degree of target community     |
+| `\sigma_{current}` | Total degree of current community    |
+| `L`                | Total number of edges                |
 
 ---
 
@@ -754,25 +754,25 @@ Measures similarity between:
 
 # Modularity
 
-[
-Q = \frac{1}{2m} \sum_{ij} \left(A_{ij} - \frac{k_i k_j}{2m}\right) \delta(c_i,c_j)
-]
+```math
+Q=\frac{1}{2m}\sum_{ij}\left(A_{ij}-\frac{k_i k_j}{2m}\right)\delta(c_i,c_j)
+```
 
 ---
 
 # Change in Modularity
 
-[
+```math
 \Delta Q = Q_{new} - Q_{old}
-]
+```
 
 ---
 
 # Simplified Louvain Delta-Q
 
-[
+```math
 \Delta Q = \frac{2(k_{i,in,target}-k_{i,in,current})}{2L} - \frac{k_i(\sigma_{target}-\sigma_{current})}{2L^2}
-]
+```
 
 ---
 
