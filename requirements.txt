@@ -1,6 +1,13 @@
 networkx
 numpy
-matplotlib
-jupyter
-python-louvain
 pandas
+matplotlib
+scipy
+scikit-learn
+gensim
+python-louvain
+torch
+torch-geometric
+nnfs
+jupyter
+ipykernel
