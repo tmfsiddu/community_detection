@@ -4,6 +4,12 @@ train_eval.py
 Clean, reusable training loop + two evaluation modes:
   1. Node Classification  → test accuracy
   2. Community Detection  → K-Means + Adjusted Rand Index (ARI)
+
+Supports all four models:
+  - ShallowGCN
+  - DeepGCN
+  - StandardGAT
+  - ResAttJKNet
 """
 
 import torch
@@ -17,10 +23,10 @@ from sklearn.metrics import adjusted_rand_score
 # ══════════════════════════════════════
 def train_model(model, data, epochs=150, lr=0.005, label="Model"):
     """
-    Trains any of the three models with cross-entropy loss.
+    Trains any of the four models with cross-entropy loss.
 
     Args:
-        model  : nn.Module (DeepGCN, StandardGAT, or ResAttJKNet)
+        model  : nn.Module (ShallowGCN, DeepGCN, StandardGAT, or ResAttJKNet)
         data   : PyG Data object
         epochs : number of epochs
         lr     : learning rate
@@ -41,7 +47,7 @@ def train_model(model, data, epochs=150, lr=0.005, label="Model"):
             out = model(data.x, data.edge_index, return_embedding=False)
         else:
             out = model(data.x, data.edge_index)
-            
+
         loss = F.cross_entropy(out[data.train_mask], data.y[data.train_mask])
 
         loss.backward()
@@ -91,15 +97,14 @@ def evaluate_clustering(model, data, num_classes, model_name="Model"):
         if _supports_embedding(model):
             emb = model(data.x, data.edge_index, return_embedding=True)
         else:
-            # For baseline models: use the penultimate layer output
-            # We re-run the forward pass but intercept the hidden state
+            # For baseline models: intercept the penultimate layer output
             emb = _get_penultimate_embedding(model, data)
 
-    emb_np  = emb.cpu().numpy()
-    labels  = data.y.cpu().numpy()
+    emb_np = emb.cpu().numpy()
+    labels = data.y.cpu().numpy()
 
     # K-Means clustering in the embedding space
-    kmeans  = KMeans(n_clusters=num_classes, random_state=42, n_init=10)
+    kmeans        = KMeans(n_clusters=num_classes, random_state=42, n_init=10)
     pred_clusters = kmeans.fit_predict(emb_np)
 
     ari = adjusted_rand_score(labels, pred_clusters)
@@ -122,7 +127,7 @@ def _accuracy(model, data, mask):
 
 
 def _supports_embedding(model):
-    """Check if model.forward accepts return_embedding kwarg (ResAttJKNet)."""
+    """Check if model.forward accepts return_embedding kwarg (ResAttJKNet only)."""
     import inspect
     sig = inspect.signature(model.forward)
     return 'return_embedding' in sig.parameters
@@ -130,23 +135,34 @@ def _supports_embedding(model):
 
 def _get_penultimate_embedding(model, data):
     """
-    For DeepGCN / StandardGAT: run all layers except the final one
-    to get the last hidden representation (used as the 'embedding').
+    For ShallowGCN / DeepGCN / StandardGAT:
+    Run all layers except the final classifier layer to get
+    the last hidden representation used as the embedding.
+
+    ShallowGCN  → output of conv1  (before conv2)
+    DeepGCN     → output of all convs except the last one
+    StandardGAT → output of conv1  (before conv2)
     """
-    # FIXED: Added the dot prefix to make it a local relative package import
-    from .models import DeepGCN, StandardGAT
-    
+    from .models import ShallowGCN, DeepGCN, StandardGAT
+
     x, edge_index = data.x, data.edge_index
 
-    if isinstance(model, DeepGCN):
-        for conv in model.convs[:-1]:   # skip last conv
+    if isinstance(model, ShallowGCN):
+        # Layer 1 output = embedding; Layer 2 is the classifier
+        x = F.relu(model.conv1(x, edge_index))
+        return x
+
+    elif isinstance(model, DeepGCN):
+        # Run all conv layers except the last one
+        for conv in model.convs[:-1]:
             x = F.relu(conv(x, edge_index))
         return x
 
     elif isinstance(model, StandardGAT):
+        # Layer 1 output = embedding; Layer 2 is the classifier
         x = F.dropout(x, p=model.dropout, training=False)
         x = F.elu(model.conv1(x, edge_index))
-        return x   # after first layer = "hidden embedding"
+        return x
 
     else:
         raise ValueError("Unknown baseline model type encountered inside helper configuration.")
