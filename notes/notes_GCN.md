@@ -71,5 +71,20 @@ At each layer we use above formula and update the node embeddings of nodes in gr
 
 Now i wanted to implement a GCN of two layers on Cora dataset and want to observe the results.The implementation is done in GCN.ipynb
 
+Based on this architechture i played around a lot of things like 
+1.changing the hidden vector dimesions from intial 16 to 4,8,32,64 and 128 and then identified 32 will be optimal one to represent the node in hidden layers.
+2.I also tried this GCN with different depths of layer starting from 2 to 6 where the standard GCN with 2 layers gave me the best results as gradually the layers are increasing over smoothing occurs and the accuracy, ARI keeps on dropping
+3.I also tried changed the aggregator type which we generally use normalized sumduring message passing in GCN to mean and max where mean gave me better performance.
+
+After identifying these optimal parameters then build a optimal GCN network and tried with cora dataset which gave me accuracy aroung 81% and 0.55 ARI
+
+Then i went to use inductive learning like till now the model know what are all the test expect their labels now we are going to remove these test nodes completly from the graph.
+The split will be decided by dataset owner which will be loaded through planetoid for this cora dataset like 140 in train 500 nodes in validation and 1000 nodes in test and something around 1000 in unallocated nodes where they dont come under any category .
+Even this approach gave me good result like if a new graph comes to the network our model will do the task efficiently.
+
+Next i tried with stardard MLP without any graph structures using only node features and also removing some part of edges randomy to check how much noise resistent out GCN model is and what i observed the ARI drops as the percentage of edge removal from the graph increases which again shows how much important graph structure is.
+
+Till now we are using hidden layer 32 dim vector of nodes for doing community detection so i tried what will we do this task using output layer 7d vectors what i observed is result dropped drastically because they preserve continous,distributed representations of feature geometry which makes them ideal fro unsupervised learning like community detection and when it comes to final layer embeddings because of their dimensionality reduction for classification purpose making them less suitable for this taks.
+
 
 
