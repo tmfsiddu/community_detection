@@ -148,4 +148,131 @@ def compute_spectral_embeddings_normalized(edge_index, num_nodes, num_components
     
     # Drop first trivial vector (slice column 1 onward)
     return eigenvectors[:, 1:]
+
+
+#here we are going to implement louvian algorithm and try experimenting with other greedy modularit algorithms
+# Append this to the bottom of src/structural_baselines_11.py
+import numpy as np
+import scipy.sparse as sp
+from sklearn.neighbors import kneighbors_graph
+
+def compute_louvain_from_scratch(embeddings_np, n_neighbors=30, max_iter=1000):
+   
+    #as we use 256d vectors as input to this but louvian wants adjacency matrix for its computatio
+    #we first convert convert that to an adjacency matrix like this kNN function looks at 256d embe and take 10 neighbors from it 
+    #build_knn_similarity_graph and run_phase1_shuffling already do this exact logic so we reuse them
+    A = build_knn_similarity_graph(embeddings_np, n_neighbors=n_neighbors)
+    return run_phase1_shuffling(A, max_iter=max_iter)
  
+#the above function does is phase one of louvian model now we will write functions for phase2
+def aggregate_graph_into_super_nodes(A, cluster_assignments):
+    num_nodes = A.shape[0]
+    num_communities = len(np.unique(cluster_assignments))
+    
+    #create an empty sparse matrix blueprint for the new coarser graph
+    #shape changes from (2708, 2708) down to (num_communities, num_communities)
+    A_new = sp.dok_matrix((num_communities, num_communities), dtype=np.float32)
+    
+    #convert original matrix to COO(coordinate format) format to loop over active edges easily
+    A_coo = A.tocoo()
+    
+    #loop over every single active link in the old graph
+    for u, v, weight in zip(A_coo.row, A_coo.col, A_coo.data):
+        #find which super-node (community) each endpoint belongs to
+        super_u = cluster_assignments[u]
+        super_v = cluster_assignments[v]
+        
+        #add the weight of the old link to the link between the two super-nodes
+        #if super_u == super_v, this automatically creates a weighted self-loop!
+        A_new[super_u, super_v] += weight
+        #here is both nodes belong to same community we will increase the weight between those two super nodes 
+    #convert back to compressed row format for fast math processing
+    return A_new.tocsr()
+
+
+#this function will build the adjacency matrix which louvian algo takes as input
+#it takes out 256d vector and build a symmetric matrix by drawing lines b/w 15 closest points
+def build_knn_similarity_graph(embeddings_np, n_neighbors=30):
+    # converts dense embedding vectors into a sparse KNN adjacency matrix
+    from sklearn.neighbors import kneighbors_graph
+    A = kneighbors_graph(embeddings_np, n_neighbors=n_neighbors, mode='connectivity', include_self=False)
+    A = A + A.T
+    A.data = np.ones_like(A.data)
+    return A
+
+#this function actually takes care of executing the phase1 of louvian algo
+def run_phase1_shuffling(A, max_iter=1000):
+    # runs phase1 of louvain (local greedy node reassignment) on a given adjacency matrix
+    num_nodes = A.shape[0]
+    communities = np.arange(num_nodes)
+    adj_dict = {i: A.getrow(i).nonzero()[1] for i in range(num_nodes)}
+    #these are variables for fast look up of nodes degree and neighbors 
+    degrees = np.array(A.sum(axis=1)).flatten()
+    m = np.sum(degrees) / 2.0
+    if m == 0:
+        return communities
+    Sigma_tot = {c: degrees[c] for c in range(num_nodes)}
+    iteration = 0
+    improvement = True
+    while improvement and iteration < max_iter:
+        improvement = False
+        iteration += 1
+        for node in range(num_nodes):
+            current_comm = communities[node]
+            node_deg = degrees[node]
+            neighbors = adj_dict[node]
+            if len(neighbors) == 0:
+                continue
+            neighbor_communities = {}
+            for neighbor in neighbors:
+                comm = communities[neighbor]
+                neighbor_communities[comm] = neighbor_communities.get(comm, 0) + 1
+            neighbor_communities[current_comm] = neighbor_communities.get(current_comm, 0)
+            Sigma_tot[current_comm] -= node_deg
+            best_comm = current_comm
+            max_delta_q = 0.0
+            for comm, k_i_in in neighbor_communities.items():
+                if comm == current_comm:
+                    continue
+                delta_q = (k_i_in / m) - (Sigma_tot[comm] * node_deg) / (2 * (m**2))
+                if delta_q > max_delta_q:
+                    max_delta_q = delta_q
+                    best_comm = comm
+            Sigma_tot[best_comm] += node_deg
+            if best_comm != current_comm:
+                communities[node] = best_comm
+                improvement = True
+    unique_comms = np.unique(communities)
+    comm_map = {old: new for new, old in enumerate(unique_comms)}
+    return np.array([comm_map[c] for c in communities])
+
+
+def full_hierarchical_louvain(embeddings_np, n_neighbors=15):
+    # phase 0  convert 256d spatial embeddings into a topological structural graph
+    A = build_knn_similarity_graph(embeddings_np, n_neighbors)
+    current_graph = A
+    
+    # Track the cluster assignment for every single original node (e.g., all 2708 papers)
+    num_nodes = A.shape[0]
+    macro_communities = np.arange(num_nodes)
+    
+    loop_condition = True
+    while loop_condition:
+        # phase1  local greedy node shuffling
+        local_clusters = run_phase1_shuffling(current_graph)
+        
+        #if the number of communities didnt change, we hit peak modularity optimization
+        if len(np.unique(local_clusters)) == current_graph.shape[0]:
+            loop_condition = False
+            break
+            
+        #mapping original nodes communities to its corresponding super nodes
+        macro_communities = np.array([local_clusters[c] for c in macro_communities])
+        
+        # phase 2 convert the graph into super node structure 
+        current_graph = aggregate_graph_into_super_nodes(current_graph, local_clusters)
+        
+    # Compress scattered indices down to a clean array from 0 to (unique_count - 1)
+    unique_comms = np.unique(macro_communities)
+    comm_map = {old: new for new, old in enumerate(unique_comms)}
+    return np.array([comm_map[c] for c in macro_communities])
